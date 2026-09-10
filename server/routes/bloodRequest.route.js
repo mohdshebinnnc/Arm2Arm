@@ -1,7 +1,7 @@
 const express=require("express")
 const {BloodRequest}=require("../models/bloodRequestSchema")
 const mongoose=require("mongoose")
-const { authenticate } = require("../middleware/authentication")
+const { authenticate, authorizeRoles } = require("../middleware/authentication")
 
 const requestRouter=express.Router()
 
@@ -16,7 +16,7 @@ requestRouter.get("/",async(req,res)=>{
     }
 })
 
-requestRouter.post("/", authenticate, async(req,res)=>{
+requestRouter.post("/", authenticate, authorizeRoles("Hospital", "Recipient", "Blood-Banks"), async(req,res)=>{
     try {
         const requestData=req.body
         const requiredFields = ["requested_type", "name","contactNumber", "bloodType", "location", "units", "status","createdBy"];
@@ -38,12 +38,16 @@ requestRouter.post("/", authenticate, async(req,res)=>{
     }
 })
 
-requestRouter.put("/:id", authenticate, async(req,res)=>{
+requestRouter.put("/:id", authenticate, authorizeRoles("Hospital", "Recipient", "Blood-Banks"), async(req,res)=>{
     try {
         const {id}=req.params
         const {requested_type, name,contactNumber,bloodType,location,units,status}=req.body
 
-        const updatedRequest=await BloodRequest.findByIdAndUpdate(id,{requested_type, name,contactNumber,bloodType,location,units,status},{ new: true })
+        const updatedRequest=await BloodRequest.findOneAndUpdate(
+            { _id: id, createdBy: String(req.user.userId) },
+            { requested_type, name,contactNumber,bloodType,location,units,status },
+            { new: true }
+        )
 
         if (!updatedRequest) {
             return res.status(404).json({ error: "Entry not found." });
@@ -57,14 +61,17 @@ requestRouter.put("/:id", authenticate, async(req,res)=>{
     }
 })
 
-requestRouter.delete("/:id", authenticate, async(req,res)=>{
+requestRouter.delete("/:id", authenticate, authorizeRoles("Hospital", "Recipient", "Blood-Banks"), async(req,res)=>{
     try {
         const {id}=req.params
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ error: "Invalid ID format" });
         }
-        const deleteRequest=await BloodRequest.findByIdAndDelete(id)
+        const deleteRequest=await BloodRequest.findOneAndDelete({
+            _id: id,
+            createdBy: String(req.user.userId),
+        })
 
         if (!deleteRequest) {
             return res.status(404).json({ error: "Request not found" });

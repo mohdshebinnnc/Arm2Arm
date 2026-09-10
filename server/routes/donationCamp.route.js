@@ -1,11 +1,11 @@
 const express=require("express")
 const mongoose=require("mongoose")
 const {DonationCamps}=require("../models/camps")
-const { authenticate } = require("../middleware/authentication")
+const { authenticate, authorizeRoles } = require("../middleware/authentication")
 
 const donationCampRouter=express.Router()
 
-donationCampRouter.post("/", authenticate, async(req,res)=>{
+donationCampRouter.post("/", authenticate, authorizeRoles("Hospital", "Blood-Banks"), async(req,res)=>{
     try {
         const campData=req.body
         const requiredFields = ["requested_type", "name","organization", "startDate","endDate","startTime","endTime", "location","contactNumber"]
@@ -13,7 +13,7 @@ donationCampRouter.post("/", authenticate, async(req,res)=>{
         if (missingFields.length > 0) {
             return res.status(400).json({ error: `Missing required fields: ${missingFields.join(", ")}` });
         }
-        const newCamp = new DonationCamps({...campData});
+        const newCamp = new DonationCamps({ ...campData, createdBy: String(req.user.userId) });
         await newCamp.save();
         res.status(201).json(newCamp);
     } catch (error) {
@@ -44,9 +44,13 @@ donationCampRouter.get("/:id",async(req,res)=>{
     }
 })
 
-donationCampRouter.put("/:id", authenticate, async (req, res) => {
+donationCampRouter.put("/:id", authenticate, authorizeRoles("Hospital", "Blood-Banks"), async (req, res) => {
     try {
-        const updatedCamp = await DonationCamps.findByIdAndUpdate(req.params.id, req.body, {new: true,runValidators: true,});
+        const updatedCamp = await DonationCamps.findOneAndUpdate(
+            { _id: req.params.id, createdBy: String(req.user.userId) },
+            req.body,
+            {new: true,runValidators: true,}
+        );
         if (!updatedCamp) {
             return res.status(404).json({ error: "Camp not found" });
         }
@@ -56,13 +60,16 @@ donationCampRouter.put("/:id", authenticate, async (req, res) => {
     }
 });
 
-donationCampRouter.delete("/:id", authenticate, async (req, res) => {
+donationCampRouter.delete("/:id", authenticate, authorizeRoles("Hospital", "Blood-Banks"), async (req, res) => {
     try {
         const {id}=req.params
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ error: "Invalid ID format" });
         }
-        const deletedCamp = await DonationCamps.findByIdAndDelete(id);
+        const deletedCamp = await DonationCamps.findOneAndDelete({
+            _id: id,
+            createdBy: String(req.user.userId),
+        });
         if (!deletedCamp) {
             return res.status(404).json({ error: "Camp not found" });
         }
