@@ -114,7 +114,11 @@ userRouter.post("/login",async(req,res)=>{
             return res.status(401).json({ error: "Invalid credentials!" });
         }
 
-        const token=jwt.sign({userId:user._id,email:user.email},process.env.JWT_SECRET,{expiresIn:"7d"})
+        const token=jwt.sign(
+            { userId: user._id, email: user.email, role: user.requested_type },
+            process.env.JWT_SECRET,
+            { expiresIn:"7d" }
+        )
 
         res.cookie("token",token,{
             httpOnly:true,
@@ -129,7 +133,8 @@ userRouter.post("/login",async(req,res)=>{
                 id: user._id,
                 name: user.name,
                 email: user.email,
-                bloodType: user.bloodType
+                bloodType: user.bloodType,
+                role: user.requested_type
             }
         })
 
@@ -149,6 +154,10 @@ userRouter.post("/logout",(req,res)=>{
 userRouter.put("/:id", authenticate, async (req, res) => {
     const { id } = req.params;
     const { name, email, age, location, weight, bloodType,contactNumber,requested_type} = req.body;
+
+    if (id !== String(req.user.userId)) {
+        return res.status(403).json({ message: "You can only update your own profile" });
+    }
 
     try {
         const updatedUser = await User.findByIdAndUpdate(id,

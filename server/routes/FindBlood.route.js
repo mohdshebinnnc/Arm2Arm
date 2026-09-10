@@ -1,6 +1,6 @@
 const express=require("express")
 const {FindBlood}=require("../models/findBlood")
-const { authenticate } = require("../middleware/authentication")
+const { authenticate, authorizeRoles } = require("../middleware/authentication")
 
 const findBloodRouter=express.Router()
 
@@ -16,7 +16,7 @@ findBloodRouter.get("/",async(req,res)=>{
 })
 
 
-findBloodRouter.post("/", authenticate, async(req,res)=>{
+findBloodRouter.post("/", authenticate, authorizeRoles("Donor", "Blood-Banks"), async(req,res)=>{
     try {
         const findBloodData=req.body
         const requiredFields=["requested_type","name","contactNumber","bloodType","location"]
